@@ -1,4 +1,5 @@
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use skia_safe::Canvas;
 use windows::{
     core::Interface,
     System::DispatcherQueueController,
@@ -17,7 +18,7 @@ use windows::{
     },
 };
 
-use crate::{d3d12::D3d12Backend, SkiaD3d12SwapChain};
+use crate::d3d12::{swap_chain::SkiaD3d12SwapChain, D3d12Backend};
 
 pub struct WindowsUiCompositionBackend {
     _dispatcher_queue_controller: DispatcherQueueController,
@@ -34,8 +35,10 @@ impl WindowsUiCompositionBackend {
         &mut self,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12SwapChain> {
-        self.d3d12.create_composition_swap_chain(width, height)
+    ) -> windows::core::Result<WindowsUiCompositionSwapChain> {
+        Ok(WindowsUiCompositionSwapChain(
+            self.d3d12.create_composition_swap_chain(width, height)?,
+        ))
     }
 }
 
@@ -67,7 +70,7 @@ impl WindowsUiCompositionTarget {
     }
     pub fn create_visual(
         &self,
-        swap_chain: &SkiaD3d12SwapChain,
+        swap_chain: &WindowsUiCompositionSwapChain,
     ) -> windows::core::Result<SpriteVisual> {
         let visual = self.compositor.CreateSpriteVisual()?;
 
@@ -78,19 +81,41 @@ impl WindowsUiCompositionTarget {
     }
     pub fn create_brush(
         &self,
-        swap_chain: &SkiaD3d12SwapChain,
+        swap_chain: &WindowsUiCompositionSwapChain,
     ) -> windows::core::Result<CompositionSurfaceBrush> {
         let surface = self.create_surface(swap_chain)?;
 
-        self.compositor.CreateSurfaceBrushWithSurface(&surface)
+        let brush = self.compositor.CreateSurfaceBrushWithSurface(&surface)?;
+        brush.SetStretch(windows::UI::Composition::CompositionStretch::Fill)?;
+
+        Ok(brush)
     }
     pub fn create_surface(
         &self,
-        swap_chain: &SkiaD3d12SwapChain,
+        swap_chain: &WindowsUiCompositionSwapChain,
     ) -> windows::core::Result<ICompositionSurface> {
         let compositor_interop: ICompositorInterop = self.compositor.cast()?;
 
-        unsafe { compositor_interop.CreateCompositionSurfaceForSwapChain(&swap_chain.swap_chain) }
+        unsafe { compositor_interop.CreateCompositionSurfaceForSwapChain(&swap_chain.0.swap_chain) }
+    }
+}
+
+pub struct WindowsUiCompositionSwapChain(SkiaD3d12SwapChain);
+impl WindowsUiCompositionSwapChain {
+    pub fn resize(
+        &mut self,
+        env: &mut WindowsUiCompositionBackend,
+        width: u32,
+        height: u32,
+    ) -> windows::core::Result<()> {
+        self.0.resize(&mut env.d3d12, width, height)
+    }
+    pub fn draw(
+        &mut self,
+        env: &mut WindowsUiCompositionBackend,
+        f: impl FnMut(&Canvas),
+    ) -> windows::core::HRESULT {
+        self.0.draw(&mut env.d3d12, f)
     }
 }
 

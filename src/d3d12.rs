@@ -1,7 +1,5 @@
-use crate::swap_chain::{
-    swap_chain_desc_composition, swap_chain_desc_hwnd, SkiaD3d12SwapChain,
-    SkiaD3d12SwapChainSurfaceArray,
-};
+pub(crate) mod swap_chain;
+
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use skia_safe::{
     gpu::{
@@ -11,6 +9,10 @@ use skia_safe::{
         surfaces, BackendRenderTarget, DirectContext, Protected, SurfaceOrigin, SyncCpu,
     },
     ColorType, Surface,
+};
+use swap_chain::{
+    swap_chain_desc_composition, swap_chain_desc_hwnd, SkiaD3d12SwapChain,
+    SkiaD3d12SwapChainSurfaceArray,
 };
 use windows::{
     core::Interface,
