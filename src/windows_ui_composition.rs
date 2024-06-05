@@ -37,7 +37,8 @@ impl CompositionBackend {
         height: u32,
     ) -> windows::core::Result<CompositionSwapChain> {
         Ok(CompositionSwapChain::new(
-            self.d3d12.create_composition_swap_chain(width, height)?,
+            self.d3d12
+                .create_swap_chain_for_composition(width, height)?,
         ))
     }
 }
@@ -104,7 +105,7 @@ impl CompositionSwapChain {
         if let Some((width, height)) = self.0.needs_resize() {
             env.d3d12.recreate_context_if_needed()?;
 
-            let swap_chain = env.d3d12.create_composition_swap_chain(width, height)?;
+            let swap_chain = env.d3d12.create_swap_chain_for_composition(width, height)?;
             let surface = target.create_surface_internal(&swap_chain)?;
 
             self.0 = SwapChainState::Active(swap_chain);

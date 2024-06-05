@@ -79,10 +79,10 @@ impl Backend {
     ) -> windows::core::Result<HwndSwapChain> {
         Ok(HwndSwapChain::new(
             hwnd,
-            self.create_hwnd_swap_chain_internal(hwnd, width, height)?,
+            self.create_swap_chain_for_hwnd(hwnd, width, height)?,
         ))
     }
-    pub(crate) fn create_hwnd_swap_chain_internal(
+    pub fn create_swap_chain_for_hwnd(
         &mut self,
         hwnd: HWND,
         width: u32,
@@ -103,7 +103,7 @@ impl Backend {
 
         Ok(SwapChain::new(swap_chain, surfaces))
     }
-    pub fn create_composition_swap_chain(
+    pub fn create_swap_chain_for_composition(
         &mut self,
         width: u32,
         height: u32,

@@ -35,9 +35,8 @@ impl HwndSwapChain {
         if let Some((width, height)) = self.swap_chain.needs_resize() {
             env.recreate_context_if_needed()?;
 
-            self.swap_chain = SwapChainState::Active(
-                env.create_hwnd_swap_chain_internal(self.hwnd, width, height)?,
-            );
+            self.swap_chain =
+                SwapChainState::Active(env.create_swap_chain_for_hwnd(self.hwnd, width, height)?);
         }
         unsafe { self.swap_chain.get_active_mut().unwrap_unchecked() }
             .draw(env, f)
