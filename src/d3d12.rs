@@ -11,7 +11,7 @@ use skia_safe::{
     ColorType, Surface,
 };
 use swap_chain::{
-    swap_chain_desc_composition, swap_chain_desc_hwnd, SkiaD3d12SwapChain,
+    swap_chain_desc_composition, swap_chain_desc_hwnd, SkiaD3d12HwndSwapChain, SkiaD3d12SwapChain,
     SkiaD3d12SwapChainSurfaceArray,
 };
 use windows::{
@@ -32,36 +32,31 @@ use windows::{
 
 pub struct D3d12Backend {
     factory: IDXGIFactory4,
-    backend_context: BackendContext,
-    direct_context: DirectContext,
+    skia_context: OptionalSkiaD3d12Context,
 }
 impl D3d12Backend {
     pub fn new() -> windows::core::Result<Self> {
         let factory: IDXGIFactory4 = unsafe { CreateDXGIFactory1() }?;
-        let (adapter, device) = get_hardware_adapter_and_device(&factory)?;
-        let queue: ID3D12CommandQueue = unsafe { device.CreateCommandQueue(&Default::default()) }?;
 
-        let backend_context = BackendContext {
-            adapter,
-            device,
-            queue,
-            memory_allocator: None,
-            protected_context: Protected::No,
-        };
-        let direct_context = unsafe { DirectContext::new_d3d(&backend_context, None) }.unwrap();
+        let skia_context = OptionalSkiaD3d12Context::new(&factory)?;
 
         Ok(Self {
             factory,
-            backend_context,
-            direct_context,
+            skia_context,
         })
+    }
+    pub fn release_context(&mut self) {
+        self.skia_context.release();
+    }
+    pub fn recreate_context_if_needed(&mut self) -> windows::core::Result<bool> {
+        self.skia_context.recreate_if_needed(&self.factory)
     }
     pub fn create_window_swap_chain<W: HasRawWindowHandle>(
         &mut self,
         window: &W,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12SwapChain> {
+    ) -> windows::core::Result<SkiaD3d12HwndSwapChain> {
         self.create_raw_window_handle_swap_chain(window.raw_window_handle(), width, height)
     }
     pub fn create_raw_window_handle_swap_chain(
@@ -69,7 +64,7 @@ impl D3d12Backend {
         window_handle: RawWindowHandle,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12SwapChain> {
+    ) -> windows::core::Result<SkiaD3d12HwndSwapChain> {
         let hwnd = match window_handle {
             RawWindowHandle::Win32(window_handle) => HWND(window_handle.hwnd as _),
             _ => panic!("not win32"),
@@ -81,10 +76,21 @@ impl D3d12Backend {
         hwnd: HWND,
         width: u32,
         height: u32,
+    ) -> windows::core::Result<SkiaD3d12HwndSwapChain> {
+        Ok(SkiaD3d12HwndSwapChain::new(
+            hwnd,
+            self.create_hwnd_swap_chain_internal(hwnd, width, height)?,
+        ))
+    }
+    pub(crate) fn create_hwnd_swap_chain_internal(
+        &mut self,
+        hwnd: HWND,
+        width: u32,
+        height: u32,
     ) -> windows::core::Result<SkiaD3d12SwapChain> {
         let swap_chain: IDXGISwapChain3 = unsafe {
             self.factory.CreateSwapChainForHwnd(
-                &self.backend_context.queue,
+                &self.skia_context.unwrap_ref().backend_context.queue,
                 hwnd,
                 &swap_chain_desc_hwnd(width, height),
                 None,
@@ -104,7 +110,7 @@ impl D3d12Backend {
     ) -> windows::core::Result<SkiaD3d12SwapChain> {
         let swap_chain: IDXGISwapChain3 = unsafe {
             self.factory.CreateSwapChainForComposition(
-                &self.backend_context.queue,
+                &self.skia_context.unwrap_ref().backend_context.queue,
                 &swap_chain_desc_composition(width, height),
                 None,
             )
@@ -139,7 +145,7 @@ impl D3d12Backend {
             );
 
             let surface = surfaces::wrap_backend_render_target(
-                &mut self.direct_context,
+                &mut self.skia_context.unwrap_mut().direct_context,
                 &backend_render_target,
                 SurfaceOrigin::TopLeft,
                 ColorType::RGBA8888,
@@ -156,8 +162,75 @@ impl D3d12Backend {
         surface: &mut Surface,
         sync_cpu: impl Into<Option<SyncCpu>>,
     ) {
+        self.skia_context
+            .unwrap_mut()
+            .flush_and_submit_surface(surface, sync_cpu)
+    }
+    pub fn get_device_removed_reason(&self) -> windows::core::Result<()> {
+        self.skia_context.unwrap_ref().get_device_removed_reason()
+    }
+    pub fn cleanup(&mut self) {
+        self.skia_context.unwrap_mut().cleanup()
+    }
+}
+
+struct OptionalSkiaD3d12Context(Option<SkiaD3d12Context>);
+impl OptionalSkiaD3d12Context {
+    fn new(factory: &IDXGIFactory4) -> windows::core::Result<Self> {
+        Ok(Self(Some(SkiaD3d12Context::new(factory)?)))
+    }
+    fn recreate_if_needed(&mut self, factory: &IDXGIFactory4) -> windows::core::Result<bool> {
+        if self.0.is_none() {
+            self.0 = Some(SkiaD3d12Context::new(factory)?);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+    fn unwrap_ref(&self) -> &SkiaD3d12Context {
+        self.0.as_ref().unwrap()
+    }
+    fn unwrap_mut(&mut self) -> &mut SkiaD3d12Context {
+        self.0.as_mut().unwrap()
+    }
+    fn release(&mut self) {
+        self.0 = None;
+    }
+}
+
+struct SkiaD3d12Context {
+    backend_context: BackendContext,
+    direct_context: DirectContext,
+}
+impl SkiaD3d12Context {
+    fn new(factory: &IDXGIFactory4) -> windows::core::Result<Self> {
+        let (adapter, device) = get_hardware_adapter_and_device(&factory)?;
+        let queue: ID3D12CommandQueue = unsafe { device.CreateCommandQueue(&Default::default()) }?;
+
+        let backend_context = BackendContext {
+            adapter,
+            device,
+            queue,
+            memory_allocator: None,
+            protected_context: Protected::No,
+        };
+        let direct_context = unsafe { DirectContext::new_d3d(&backend_context, None) }.unwrap();
+
+        Ok(Self {
+            backend_context,
+            direct_context,
+        })
+    }
+    pub(crate) fn flush_and_submit_surface(
+        &mut self,
+        surface: &mut Surface,
+        sync_cpu: impl Into<Option<SyncCpu>>,
+    ) {
         self.direct_context
             .flush_and_submit_surface(surface, sync_cpu);
+    }
+    pub fn get_device_removed_reason(&self) -> windows::core::Result<()> {
+        unsafe { self.backend_context.device.GetDeviceRemovedReason() }
     }
     pub fn cleanup(&mut self) {
         self.direct_context

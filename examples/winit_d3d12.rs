@@ -42,16 +42,13 @@ fn main() {
                             &Paint::new(colors::CYAN, None),
                         );
                     })
-                    .ok()
                     .unwrap();
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(new_size),
                 ..
             } => {
-                swap_chain
-                    .resize(&mut d3d12, new_size.width, new_size.height)
-                    .unwrap();
+                swap_chain.resize(&mut d3d12, new_size.width, new_size.height);
                 size = new_size;
             }
             _ => (),
