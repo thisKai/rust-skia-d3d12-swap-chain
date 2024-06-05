@@ -11,32 +11,27 @@ use windows::Win32::{
     },
 };
 
-use crate::d3d12::D3d12Backend;
+use crate::d3d12::Backend;
 
 pub(crate) const BUFFER_COUNT: u32 = 2;
 
-pub(crate) type SkiaD3d12SwapChainSurfaceArray =
-    [(Surface, BackendRenderTarget); BUFFER_COUNT as _];
+pub(crate) type SwapChainSurfaceArray = [(Surface, BackendRenderTarget); BUFFER_COUNT as _];
 
-pub struct SkiaD3d12HwndSwapChain {
+pub struct HwndSwapChain {
     hwnd: HWND,
     swap_chain: SwapChainState,
 }
-impl SkiaD3d12HwndSwapChain {
-    pub(crate) fn new(hwnd: HWND, swap_chain: SkiaD3d12SwapChain) -> Self {
+impl HwndSwapChain {
+    pub(crate) fn new(hwnd: HWND, swap_chain: SwapChain) -> Self {
         Self {
             hwnd,
             swap_chain: SwapChainState::Active(swap_chain),
         }
     }
-    pub fn resize(&mut self, env: &mut D3d12Backend, width: u32, height: u32) {
+    pub fn resize(&mut self, env: &mut Backend, width: u32, height: u32) {
         self.swap_chain.resize(env, width, height);
     }
-    pub fn draw(
-        &mut self,
-        env: &mut D3d12Backend,
-        f: impl FnMut(&Canvas),
-    ) -> windows::core::Result<()> {
+    pub fn draw(&mut self, env: &mut Backend, f: impl FnMut(&Canvas)) -> windows::core::Result<()> {
         if let Some((width, height)) = self.swap_chain.needs_resize() {
             env.recreate_context_if_needed()?;
 
@@ -51,17 +46,17 @@ impl SkiaD3d12HwndSwapChain {
 }
 
 pub(crate) enum SwapChainState {
-    Active(SkiaD3d12SwapChain),
+    Active(SwapChain),
     Resizing { new_width: u32, new_height: u32 },
 }
 impl SwapChainState {
-    pub(crate) fn get_active(&self) -> Option<&SkiaD3d12SwapChain> {
+    pub(crate) fn get_active(&self) -> Option<&SwapChain> {
         match self {
             Self::Active(swap_chain) => Some(swap_chain),
             _ => None,
         }
     }
-    pub(crate) fn get_active_mut(&mut self) -> Option<&mut SkiaD3d12SwapChain> {
+    pub(crate) fn get_active_mut(&mut self) -> Option<&mut SwapChain> {
         match self {
             Self::Active(swap_chain) => Some(swap_chain),
             _ => None,
@@ -76,7 +71,7 @@ impl SwapChainState {
             _ => None,
         }
     }
-    pub(crate) fn resize(&mut self, env: &mut D3d12Backend, width: u32, height: u32) {
+    pub(crate) fn resize(&mut self, env: &mut Backend, width: u32, height: u32) {
         let needs_resize = self
             .get_active_mut()
             .map(|swap_chain| {
@@ -98,16 +93,13 @@ impl SwapChainState {
     }
 }
 
-pub struct SkiaD3d12SwapChain {
+pub struct SwapChain {
     pub(crate) swap_chain: IDXGISwapChain3,
-    surfaces: Option<SkiaD3d12SwapChainSurfaceArray>,
+    surfaces: Option<SwapChainSurfaceArray>,
 }
 
-impl SkiaD3d12SwapChain {
-    pub(crate) fn new(
-        swap_chain: IDXGISwapChain3,
-        surfaces: SkiaD3d12SwapChainSurfaceArray,
-    ) -> Self {
+impl SwapChain {
+    pub(crate) fn new(swap_chain: IDXGISwapChain3, surfaces: SwapChainSurfaceArray) -> Self {
         Self {
             swap_chain,
             surfaces: Some(surfaces),
@@ -115,7 +107,7 @@ impl SkiaD3d12SwapChain {
     }
     pub fn resize(
         &mut self,
-        env: &mut D3d12Backend,
+        env: &mut Backend,
         width: u32,
         height: u32,
     ) -> windows::core::Result<()> {
@@ -137,7 +129,7 @@ impl SkiaD3d12SwapChain {
     }
     pub fn draw(
         &mut self,
-        env: &mut D3d12Backend,
+        env: &mut Backend,
         mut f: impl FnMut(&Canvas),
     ) -> windows::core::HRESULT {
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() };
@@ -150,7 +142,7 @@ impl SkiaD3d12SwapChain {
         env.flush_and_submit_surface(surface, None);
         unsafe { self.swap_chain.Present(1, 0) }
     }
-    pub fn present(&mut self, env: &mut D3d12Backend) {
+    pub fn present(&mut self, env: &mut Backend) {
         let surface = self.get_surface();
         env.flush_and_submit_surface(surface, None);
         unsafe { self.swap_chain.Present(1, 0) }.ok().unwrap()

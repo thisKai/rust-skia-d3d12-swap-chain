@@ -1,4 +1,4 @@
-use skia_d3d12_swap_chain::D3d12Backend;
+use skia_d3d12_swap_chain::Backend;
 use skia_safe::{colors, Paint};
 use winit::{
     event::{Event, WindowEvent},
@@ -8,7 +8,7 @@ use winit::{
 fn main() {
     let event_loop = EventLoop::new().unwrap();
 
-    let mut d3d12 = D3d12Backend::new().unwrap();
+    let mut d3d12 = Backend::new().unwrap();
 
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 

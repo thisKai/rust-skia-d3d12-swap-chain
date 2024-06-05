@@ -16,37 +16,37 @@ use windows::{
 };
 
 use crate::d3d12::{
-    swap_chain::{SkiaD3d12SwapChain, SwapChainState},
-    D3d12Backend,
+    swap_chain::{SwapChain, SwapChainState},
+    Backend,
 };
 
-pub struct WindowsUiCompositionBackend {
+pub struct CompositionBackend {
     _dispatcher_queue_controller: DispatcherQueueController,
-    d3d12: D3d12Backend,
+    d3d12: Backend,
 }
-impl WindowsUiCompositionBackend {
+impl CompositionBackend {
     pub fn new() -> windows::core::Result<Self> {
         Ok(Self {
             _dispatcher_queue_controller: create_dispatcher_queue_controller_for_current_thread()?,
-            d3d12: D3d12Backend::new()?,
+            d3d12: Backend::new()?,
         })
     }
     pub fn create_swap_chain(
         &mut self,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<WindowsUiCompositionSwapChain> {
-        Ok(WindowsUiCompositionSwapChain::new(
+    ) -> windows::core::Result<CompositionSwapChain> {
+        Ok(CompositionSwapChain::new(
             self.d3d12.create_composition_swap_chain(width, height)?,
         ))
     }
 }
 
-pub struct WindowsUiCompositionTarget {
+pub struct CompositionTarget {
     pub compositor: Compositor,
     pub desktop_window_target: DesktopWindowTarget,
 }
-impl WindowsUiCompositionTarget {
+impl CompositionTarget {
     pub fn with_window<W: HasRawWindowHandle>(window: &W) -> windows::core::Result<Self> {
         Self::with_raw_window_handle(window.raw_window_handle())
     }
@@ -70,7 +70,7 @@ impl WindowsUiCompositionTarget {
     }
     pub fn create_surface(
         &self,
-        swap_chain: &WindowsUiCompositionSwapChain,
+        swap_chain: &CompositionSwapChain,
     ) -> windows::core::Result<Option<ICompositionSurface>> {
         swap_chain
             .0
@@ -80,7 +80,7 @@ impl WindowsUiCompositionTarget {
     }
     fn create_surface_internal(
         &self,
-        swap_chain: &SkiaD3d12SwapChain,
+        swap_chain: &SwapChain,
     ) -> windows::core::Result<ICompositionSurface> {
         let compositor_interop: ICompositorInterop = self.compositor.cast()?;
 
@@ -88,18 +88,18 @@ impl WindowsUiCompositionTarget {
     }
 }
 
-pub struct WindowsUiCompositionSwapChain(SwapChainState);
-impl WindowsUiCompositionSwapChain {
-    fn new(swap_chain: SkiaD3d12SwapChain) -> Self {
+pub struct CompositionSwapChain(SwapChainState);
+impl CompositionSwapChain {
+    fn new(swap_chain: SwapChain) -> Self {
         Self(SwapChainState::Active(swap_chain))
     }
-    pub fn resize(&mut self, env: &mut WindowsUiCompositionBackend, width: u32, height: u32) {
+    pub fn resize(&mut self, env: &mut CompositionBackend, width: u32, height: u32) {
         self.0.resize(&mut env.d3d12, width, height);
     }
     pub fn new_surface(
         &mut self,
-        env: &mut WindowsUiCompositionBackend,
-        target: &WindowsUiCompositionTarget,
+        env: &mut CompositionBackend,
+        target: &CompositionTarget,
     ) -> windows::core::Result<Option<ICompositionSurface>> {
         if let Some((width, height)) = self.0.needs_resize() {
             env.d3d12.recreate_context_if_needed()?;
@@ -116,7 +116,7 @@ impl WindowsUiCompositionSwapChain {
     }
     pub fn draw(
         &mut self,
-        env: &mut WindowsUiCompositionBackend,
+        env: &mut CompositionBackend,
         f: impl FnMut(&Canvas),
     ) -> windows::core::Result<()> {
         self.0

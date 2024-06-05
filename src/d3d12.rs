@@ -11,8 +11,8 @@ use skia_safe::{
     ColorType, Surface,
 };
 use swap_chain::{
-    swap_chain_desc_composition, swap_chain_desc_hwnd, SkiaD3d12HwndSwapChain, SkiaD3d12SwapChain,
-    SkiaD3d12SwapChainSurfaceArray,
+    swap_chain_desc_composition, swap_chain_desc_hwnd, HwndSwapChain, SwapChain,
+    SwapChainSurfaceArray,
 };
 use windows::{
     core::Interface,
@@ -30,15 +30,15 @@ use windows::{
     },
 };
 
-pub struct D3d12Backend {
+pub struct Backend {
     factory: IDXGIFactory4,
-    skia_context: OptionalSkiaD3d12Context,
+    skia_context: OptionalSkiaContext,
 }
-impl D3d12Backend {
+impl Backend {
     pub fn new() -> windows::core::Result<Self> {
         let factory: IDXGIFactory4 = unsafe { CreateDXGIFactory1() }?;
 
-        let skia_context = OptionalSkiaD3d12Context::new(&factory)?;
+        let skia_context = OptionalSkiaContext::new(&factory)?;
 
         Ok(Self {
             factory,
@@ -56,7 +56,7 @@ impl D3d12Backend {
         window: &W,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12HwndSwapChain> {
+    ) -> windows::core::Result<HwndSwapChain> {
         self.create_raw_window_handle_swap_chain(window.raw_window_handle(), width, height)
     }
     pub fn create_raw_window_handle_swap_chain(
@@ -64,7 +64,7 @@ impl D3d12Backend {
         window_handle: RawWindowHandle,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12HwndSwapChain> {
+    ) -> windows::core::Result<HwndSwapChain> {
         let hwnd = match window_handle {
             RawWindowHandle::Win32(window_handle) => HWND(window_handle.hwnd as _),
             _ => panic!("not win32"),
@@ -76,8 +76,8 @@ impl D3d12Backend {
         hwnd: HWND,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12HwndSwapChain> {
-        Ok(SkiaD3d12HwndSwapChain::new(
+    ) -> windows::core::Result<HwndSwapChain> {
+        Ok(HwndSwapChain::new(
             hwnd,
             self.create_hwnd_swap_chain_internal(hwnd, width, height)?,
         ))
@@ -87,7 +87,7 @@ impl D3d12Backend {
         hwnd: HWND,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12SwapChain> {
+    ) -> windows::core::Result<SwapChain> {
         let swap_chain: IDXGISwapChain3 = unsafe {
             self.factory.CreateSwapChainForHwnd(
                 &self.skia_context.unwrap_ref().backend_context.queue,
@@ -101,13 +101,13 @@ impl D3d12Backend {
 
         let surfaces = self.create_swap_chain_surfaces(&swap_chain, width, height);
 
-        Ok(SkiaD3d12SwapChain::new(swap_chain, surfaces))
+        Ok(SwapChain::new(swap_chain, surfaces))
     }
     pub fn create_composition_swap_chain(
         &mut self,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<SkiaD3d12SwapChain> {
+    ) -> windows::core::Result<SwapChain> {
         let swap_chain: IDXGISwapChain3 = unsafe {
             self.factory.CreateSwapChainForComposition(
                 &self.skia_context.unwrap_ref().backend_context.queue,
@@ -119,14 +119,14 @@ impl D3d12Backend {
 
         let surfaces = self.create_swap_chain_surfaces(&swap_chain, width, height);
 
-        Ok(SkiaD3d12SwapChain::new(swap_chain, surfaces))
+        Ok(SwapChain::new(swap_chain, surfaces))
     }
     pub(crate) fn create_swap_chain_surfaces(
         &mut self,
         swap_chain: &IDXGISwapChain3,
         width: u32,
         height: u32,
-    ) -> SkiaD3d12SwapChainSurfaceArray {
+    ) -> SwapChainSurfaceArray {
         std::array::from_fn(|i| {
             let resource = unsafe { swap_chain.GetBuffer(i as u32).unwrap() };
 
@@ -174,23 +174,23 @@ impl D3d12Backend {
     }
 }
 
-struct OptionalSkiaD3d12Context(Option<SkiaD3d12Context>);
-impl OptionalSkiaD3d12Context {
+struct OptionalSkiaContext(Option<SkiaContext>);
+impl OptionalSkiaContext {
     fn new(factory: &IDXGIFactory4) -> windows::core::Result<Self> {
-        Ok(Self(Some(SkiaD3d12Context::new(factory)?)))
+        Ok(Self(Some(SkiaContext::new(factory)?)))
     }
     fn recreate_if_needed(&mut self, factory: &IDXGIFactory4) -> windows::core::Result<bool> {
         if self.0.is_none() {
-            self.0 = Some(SkiaD3d12Context::new(factory)?);
+            self.0 = Some(SkiaContext::new(factory)?);
             Ok(true)
         } else {
             Ok(false)
         }
     }
-    fn unwrap_ref(&self) -> &SkiaD3d12Context {
+    fn unwrap_ref(&self) -> &SkiaContext {
         self.0.as_ref().unwrap()
     }
-    fn unwrap_mut(&mut self) -> &mut SkiaD3d12Context {
+    fn unwrap_mut(&mut self) -> &mut SkiaContext {
         self.0.as_mut().unwrap()
     }
     fn release(&mut self) {
@@ -198,11 +198,11 @@ impl OptionalSkiaD3d12Context {
     }
 }
 
-struct SkiaD3d12Context {
+struct SkiaContext {
     backend_context: BackendContext,
     direct_context: DirectContext,
 }
-impl SkiaD3d12Context {
+impl SkiaContext {
     fn new(factory: &IDXGIFactory4) -> windows::core::Result<Self> {
         let (adapter, device) = get_hardware_adapter_and_device(&factory)?;
         let queue: ID3D12CommandQueue = unsafe { device.CreateCommandQueue(&Default::default()) }?;
