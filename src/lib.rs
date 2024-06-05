@@ -1,3 +1,5 @@
+mod swap_chain;
+
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use skia_safe::{
     gpu::{
@@ -8,7 +10,9 @@ use skia_safe::{
     },
     ColorType,
 };
-use swap_chain::{SkiaD3d12SwapChain, SkiaD3d12SwapChainSurfaceArray, BUFFER_COUNT};
+use swap_chain::{
+    swap_chain_desc_composition, swap_chain_desc_hwnd, SkiaD3d12SwapChainSurfaceArray,
+};
 use windows::{
     core::Interface,
     Win32::{
@@ -17,19 +21,15 @@ use windows::{
             Direct3D::D3D_FEATURE_LEVEL_11_0,
             Direct3D12::{D3D12CreateDevice, D3D12_RESOURCE_STATE_COMMON},
             Dxgi::{
-                Common::{
-                    DXGI_ALPHA_MODE_PREMULTIPLIED, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_SAMPLE_DESC,
-                    DXGI_STANDARD_MULTISAMPLE_QUALITY_PATTERN,
-                },
+                Common::{DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_STANDARD_MULTISAMPLE_QUALITY_PATTERN},
                 CreateDXGIFactory1, IDXGIFactory4, IDXGISwapChain3, DXGI_ADAPTER_FLAG,
-                DXGI_ADAPTER_FLAG_NONE, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_SWAP_CHAIN_DESC1,
-                DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, DXGI_USAGE_RENDER_TARGET_OUTPUT,
+                DXGI_ADAPTER_FLAG_NONE, DXGI_ADAPTER_FLAG_SOFTWARE,
             },
         },
     },
 };
 
-mod swap_chain;
+pub use swap_chain::SkiaD3d12SwapChain;
 
 pub struct D3d12Backend {
     factory: IDXGIFactory4,
@@ -87,19 +87,7 @@ impl D3d12Backend {
             self.factory.CreateSwapChainForHwnd(
                 &self.backend_context.queue,
                 hwnd,
-                &DXGI_SWAP_CHAIN_DESC1 {
-                    Width: width,
-                    Height: height,
-                    Format: DXGI_FORMAT_R8G8B8A8_UNORM,
-                    BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
-                    BufferCount: BUFFER_COUNT,
-                    SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
-                    SampleDesc: DXGI_SAMPLE_DESC {
-                        Count: 1,
-                        Quality: 0,
-                    },
-                    ..Default::default()
-                },
+                &swap_chain_desc_hwnd(width, height),
                 None,
                 None,
             )
@@ -118,20 +106,7 @@ impl D3d12Backend {
         let swap_chain: IDXGISwapChain3 = unsafe {
             self.factory.CreateSwapChainForComposition(
                 &self.backend_context.queue,
-                &DXGI_SWAP_CHAIN_DESC1 {
-                    Width: width,
-                    Height: height,
-                    Format: DXGI_FORMAT_R8G8B8A8_UNORM,
-                    BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
-                    BufferCount: BUFFER_COUNT,
-                    SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
-                    SampleDesc: DXGI_SAMPLE_DESC {
-                        Count: 1,
-                        Quality: 0,
-                    },
-                    AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
-                    ..Default::default()
-                },
+                &swap_chain_desc_composition(width, height),
                 None,
             )
         }?

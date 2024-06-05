@@ -1,5 +1,12 @@
 use skia_safe::{gpu::BackendRenderTarget, Canvas, Surface};
-use windows::Win32::Graphics::Dxgi::{Common::DXGI_FORMAT_UNKNOWN, IDXGISwapChain3};
+use windows::Win32::Graphics::Dxgi::{
+    Common::{
+        DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_UNSPECIFIED, DXGI_FORMAT_R8G8B8A8_UNORM,
+        DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
+    },
+    IDXGISwapChain3, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+    DXGI_USAGE_RENDER_TARGET_OUTPUT,
+};
 
 use crate::D3d12Backend;
 
@@ -66,5 +73,30 @@ impl SkiaD3d12SwapChain {
     pub fn get_surface(&mut self) -> &mut Surface {
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() };
         &mut self.surfaces.as_mut().unwrap()[index as usize].0
+    }
+}
+
+pub(crate) fn swap_chain_desc_hwnd(width: u32, height: u32) -> DXGI_SWAP_CHAIN_DESC1 {
+    swap_chain_desc(width, height, DXGI_ALPHA_MODE_UNSPECIFIED)
+}
+
+pub(crate) fn swap_chain_desc_composition(width: u32, height: u32) -> DXGI_SWAP_CHAIN_DESC1 {
+    swap_chain_desc(width, height, DXGI_ALPHA_MODE_UNSPECIFIED)
+}
+
+fn swap_chain_desc(width: u32, height: u32, alpha_mode: DXGI_ALPHA_MODE) -> DXGI_SWAP_CHAIN_DESC1 {
+    DXGI_SWAP_CHAIN_DESC1 {
+        Width: width,
+        Height: height,
+        Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+        BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+        BufferCount: BUFFER_COUNT,
+        SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+        SampleDesc: DXGI_SAMPLE_DESC {
+            Count: 1,
+            Quality: 0,
+        },
+        AlphaMode: alpha_mode,
+        ..Default::default()
     }
 }
