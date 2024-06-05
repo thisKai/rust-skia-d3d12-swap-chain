@@ -8,7 +8,7 @@ use windows::Win32::Graphics::Dxgi::{
     DXGI_USAGE_RENDER_TARGET_OUTPUT,
 };
 
-use crate::D3d12Backend;
+use crate::d3d12::D3d12Backend;
 
 pub(crate) const BUFFER_COUNT: u32 = 2;
 
@@ -62,12 +62,12 @@ impl SkiaD3d12SwapChain {
 
         f(&canvas);
 
-        env.direct_context.flush_and_submit_surface(surface, None);
+        env.flush_and_submit_surface(surface, None);
         unsafe { self.swap_chain.Present(1, 0) }
     }
     pub fn present(&mut self, env: &mut D3d12Backend) {
         let surface = self.get_surface();
-        env.direct_context.flush_and_submit_surface(surface, None);
+        env.flush_and_submit_surface(surface, None);
         unsafe { self.swap_chain.Present(1, 0) }.ok().unwrap()
     }
     pub fn get_surface(&mut self) -> &mut Surface {
