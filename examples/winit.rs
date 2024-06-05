@@ -10,12 +10,9 @@ fn main() {
 
     let mut d3d12 = D3d12Backend::new().unwrap();
 
-    let window = WindowBuilder::new()
-        .with_resizable(false)
-        .build(&event_loop)
-        .unwrap();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let size = window.inner_size();
+    let mut size = window.inner_size();
     let mut swap_chain = d3d12
         .create_window_swap_chain(&window, size.width, size.height)
         .unwrap();
@@ -47,6 +44,15 @@ fn main() {
                     })
                     .ok()
                     .unwrap();
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Resized(new_size),
+                ..
+            } => {
+                swap_chain
+                    .resize(&mut d3d12, new_size.width, new_size.height)
+                    .unwrap();
+                size = new_size;
             }
             _ => (),
         })
