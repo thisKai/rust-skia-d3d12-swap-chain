@@ -52,19 +52,20 @@ fn main() {
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 ..
-            } => {}
+            } => {
+                swap_chain
+                    .draw(&mut composition, |canvas| draw(canvas, size))
+                    .ok()
+                    .unwrap();
+            }
             Event::WindowEvent {
                 event: WindowEvent::Resized(new_size),
                 ..
             } => {
-                // swap_chain
-                //     .resize(&mut composition, new_size.width, new_size.height)
-                //     .unwrap();
-                // swap_chain
-                //     .draw(&mut composition, |canvas| draw(canvas, size))
-                //     .ok()
-                //     .unwrap();
-                // size = new_size;
+                swap_chain
+                    .resize(&mut composition, new_size.width, new_size.height)
+                    .unwrap();
+                size = new_size;
             }
             _ => (),
         })

@@ -36,6 +36,9 @@ impl SkiaD3d12SwapChain {
         width: u32,
         height: u32,
     ) -> windows::core::Result<()> {
+        if width == 0 || height == 0 {
+            return Ok(());
+        }
         env.cleanup();
 
         self.surfaces = None;
