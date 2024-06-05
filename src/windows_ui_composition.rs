@@ -12,13 +12,13 @@ use windows::{
             DQTYPE_THREAD_CURRENT,
         },
     },
-    UI::Composition::{
-        CompositionSurfaceBrush, Compositor, Desktop::DesktopWindowTarget, ICompositionSurface,
-        SpriteVisual,
-    },
+    UI::Composition::{Compositor, Desktop::DesktopWindowTarget, ICompositionSurface},
 };
 
-use crate::d3d12::{swap_chain::SkiaD3d12SwapChain, D3d12Backend};
+use crate::d3d12::{
+    swap_chain::{SkiaD3d12SwapChain, SwapChainState},
+    D3d12Backend,
+};
 
 pub struct WindowsUiCompositionBackend {
     _dispatcher_queue_controller: DispatcherQueueController,
@@ -36,7 +36,7 @@ impl WindowsUiCompositionBackend {
         width: u32,
         height: u32,
     ) -> windows::core::Result<WindowsUiCompositionSwapChain> {
-        Ok(WindowsUiCompositionSwapChain(
+        Ok(WindowsUiCompositionSwapChain::new(
             self.d3d12.create_composition_swap_chain(width, height)?,
         ))
     }
@@ -68,54 +68,62 @@ impl WindowsUiCompositionTarget {
             desktop_window_target,
         })
     }
-    pub fn create_visual(
-        &self,
-        swap_chain: &WindowsUiCompositionSwapChain,
-    ) -> windows::core::Result<SpriteVisual> {
-        let visual = self.compositor.CreateSpriteVisual()?;
-
-        let brush = self.create_brush(swap_chain)?;
-        visual.SetBrush(&brush)?;
-
-        Ok(visual)
-    }
-    pub fn create_brush(
-        &self,
-        swap_chain: &WindowsUiCompositionSwapChain,
-    ) -> windows::core::Result<CompositionSurfaceBrush> {
-        let surface = self.create_surface(swap_chain)?;
-
-        let brush = self.compositor.CreateSurfaceBrushWithSurface(&surface)?;
-        brush.SetStretch(windows::UI::Composition::CompositionStretch::Fill)?;
-
-        Ok(brush)
-    }
     pub fn create_surface(
         &self,
         swap_chain: &WindowsUiCompositionSwapChain,
+    ) -> windows::core::Result<Option<ICompositionSurface>> {
+        swap_chain
+            .0
+            .get_active()
+            .map(|swap_chain| self.create_surface_internal(swap_chain))
+            .transpose()
+    }
+    fn create_surface_internal(
+        &self,
+        swap_chain: &SkiaD3d12SwapChain,
     ) -> windows::core::Result<ICompositionSurface> {
         let compositor_interop: ICompositorInterop = self.compositor.cast()?;
 
-        unsafe { compositor_interop.CreateCompositionSurfaceForSwapChain(&swap_chain.0.swap_chain) }
+        unsafe { compositor_interop.CreateCompositionSurfaceForSwapChain(&swap_chain.swap_chain) }
     }
 }
 
-pub struct WindowsUiCompositionSwapChain(SkiaD3d12SwapChain);
+pub struct WindowsUiCompositionSwapChain(SwapChainState);
 impl WindowsUiCompositionSwapChain {
-    pub fn resize(
+    fn new(swap_chain: SkiaD3d12SwapChain) -> Self {
+        Self(SwapChainState::Active(swap_chain))
+    }
+    pub fn resize(&mut self, env: &mut WindowsUiCompositionBackend, width: u32, height: u32) {
+        self.0.resize(&mut env.d3d12, width, height);
+    }
+    pub fn new_surface(
         &mut self,
         env: &mut WindowsUiCompositionBackend,
-        width: u32,
-        height: u32,
-    ) -> windows::core::Result<()> {
-        self.0.resize(&mut env.d3d12, width, height)
+        target: &WindowsUiCompositionTarget,
+    ) -> windows::core::Result<Option<ICompositionSurface>> {
+        if let Some((width, height)) = self.0.needs_resize() {
+            env.d3d12.recreate_context_if_needed()?;
+
+            let swap_chain = env.d3d12.create_composition_swap_chain(width, height)?;
+            let surface = target.create_surface_internal(&swap_chain)?;
+
+            self.0 = SwapChainState::Active(swap_chain);
+
+            Ok(Some(surface))
+        } else {
+            Ok(None)
+        }
     }
     pub fn draw(
         &mut self,
         env: &mut WindowsUiCompositionBackend,
         f: impl FnMut(&Canvas),
-    ) -> windows::core::HRESULT {
-        self.0.draw(&mut env.d3d12, f)
+    ) -> windows::core::Result<()> {
+        self.0
+            .get_active_mut()
+            .unwrap()
+            .draw(&mut env.d3d12, f)
+            .ok()
     }
 }
 

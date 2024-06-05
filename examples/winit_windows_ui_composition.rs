@@ -25,7 +25,17 @@ fn main() {
         .create_swap_chain(size.width, size.height)
         .unwrap();
 
-    let visual = target.create_visual(&swap_chain).unwrap();
+    let surface = target.create_surface(&swap_chain).unwrap().unwrap();
+    let brush = target
+        .compositor
+        .CreateSurfaceBrushWithSurface(&surface)
+        .unwrap();
+    brush
+        .SetStretch(windows::UI::Composition::CompositionStretch::Fill)
+        .unwrap();
+
+    let visual = target.compositor.CreateSpriteVisual().unwrap();
+    visual.SetBrush(&brush).unwrap();
     visual
         .SetRelativeSizeAdjustment(Vector2 { X: 1.0, Y: 1.0 })
         .unwrap();
@@ -39,7 +49,6 @@ fn main() {
             Event::Resumed => {
                 swap_chain
                     .draw(&mut composition, |canvas| draw(canvas, size))
-                    .ok()
                     .unwrap();
             }
             Event::WindowEvent {
@@ -53,18 +62,21 @@ fn main() {
                 event: WindowEvent::RedrawRequested,
                 ..
             } => {
+                if let Some(new_surface) =
+                    swap_chain.new_surface(&mut composition, &target).unwrap()
+                {
+                    brush.SetSurface(&new_surface).unwrap();
+                }
+
                 swap_chain
                     .draw(&mut composition, |canvas| draw(canvas, size))
-                    .ok()
                     .unwrap();
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(new_size),
                 ..
             } => {
-                swap_chain
-                    .resize(&mut composition, new_size.width, new_size.height)
-                    .unwrap();
+                swap_chain.resize(&mut composition, new_size.width, new_size.height);
                 size = new_size;
             }
             _ => (),

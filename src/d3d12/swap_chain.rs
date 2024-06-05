@@ -2,12 +2,12 @@ use skia_safe::{gpu::BackendRenderTarget, Canvas, Surface};
 use windows::Win32::{
     Foundation::HWND,
     Graphics::Dxgi::{
-    Common::{
-        DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_UNSPECIFIED, DXGI_FORMAT_R8G8B8A8_UNORM,
-        DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
-    },
-    IDXGISwapChain3, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
-    DXGI_USAGE_RENDER_TARGET_OUTPUT,
+        Common::{
+            DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_UNSPECIFIED, DXGI_FORMAT_R8G8B8A8_UNORM,
+            DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
+        },
+        IDXGISwapChain3, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+        DXGI_USAGE_RENDER_TARGET_OUTPUT,
     },
 };
 
@@ -55,13 +55,19 @@ pub(crate) enum SwapChainState {
     Resizing { new_width: u32, new_height: u32 },
 }
 impl SwapChainState {
-    fn get_active_mut(&mut self) -> Option<&mut SkiaD3d12SwapChain> {
+    pub(crate) fn get_active(&self) -> Option<&SkiaD3d12SwapChain> {
         match self {
             Self::Active(swap_chain) => Some(swap_chain),
             _ => None,
         }
     }
-    fn needs_resize(&self) -> Option<(u32, u32)> {
+    pub(crate) fn get_active_mut(&mut self) -> Option<&mut SkiaD3d12SwapChain> {
+        match self {
+            Self::Active(swap_chain) => Some(swap_chain),
+            _ => None,
+        }
+    }
+    pub(crate) fn needs_resize(&self) -> Option<(u32, u32)> {
         match self {
             Self::Resizing {
                 new_width,
@@ -70,7 +76,7 @@ impl SwapChainState {
             _ => None,
         }
     }
-    fn resize(&mut self, env: &mut D3d12Backend, width: u32, height: u32) {
+    pub(crate) fn resize(&mut self, env: &mut D3d12Backend, width: u32, height: u32) {
         let needs_resize = self
             .get_active_mut()
             .map(|swap_chain| {
