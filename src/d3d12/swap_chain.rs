@@ -32,15 +32,30 @@ impl HwndSwapChain {
         self.swap_chain.resize(env, width, height);
     }
     pub fn draw(&mut self, env: &mut Backend, f: impl FnMut(&Canvas)) -> windows::core::Result<()> {
+        self.recreate_if_needed(env)?;
+
+        unsafe { self.swap_chain.get_active_mut().unwrap_unchecked() }
+            .draw(env, f)
+            .ok()
+    }
+    pub fn get_surface(&mut self, env: &mut Backend) -> windows::core::Result<&mut Surface> {
+        self.recreate_if_needed(env)?;
+
+        Ok(self.swap_chain.get_active_mut().unwrap().get_surface())
+    }
+    pub fn present(&mut self, env: &mut Backend) {
+        if let Some(swap_chain) = self.swap_chain.get_active_mut() {
+            swap_chain.present(env);
+        }
+    }
+    fn recreate_if_needed(&mut self, env: &mut Backend) -> windows::core::Result<()> {
         if let Some((width, height)) = self.swap_chain.needs_resize() {
             env.recreate_context_if_needed()?;
 
             self.swap_chain =
                 SwapChainState::Active(env.create_swap_chain_for_hwnd(self.hwnd, width, height)?);
         }
-        unsafe { self.swap_chain.get_active_mut().unwrap_unchecked() }
-            .draw(env, f)
-            .ok()
+        Ok(())
     }
 }
 
