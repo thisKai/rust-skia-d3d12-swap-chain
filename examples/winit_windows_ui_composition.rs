@@ -62,8 +62,9 @@ fn main() {
                 event: WindowEvent::RedrawRequested,
                 ..
             } => {
-                if let Some(new_surface) =
-                    swap_chain.new_surface(&mut composition, &target).unwrap()
+                if let Some(new_surface) = swap_chain
+                    .new_composition_surface(&mut composition, &target)
+                    .unwrap()
                 {
                     brush.SetSurface(&new_surface).unwrap();
                 }
@@ -79,8 +80,9 @@ fn main() {
                 swap_chain.resize(&mut composition, new_size.width, new_size.height);
                 size = new_size;
 
-                if let Some(new_surface) =
-                    swap_chain.new_surface(&mut composition, &target).unwrap()
+                if let Some(new_surface) = swap_chain
+                    .new_composition_surface(&mut composition, &target)
+                    .unwrap()
                 {
                     brush.SetSurface(&new_surface).unwrap();
                 }

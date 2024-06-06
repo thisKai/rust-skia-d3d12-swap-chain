@@ -1,5 +1,5 @@
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
-use skia_safe::Canvas;
+use skia_safe::{Canvas, Surface};
 use windows::{
     core::Interface,
     System::DispatcherQueueController,
@@ -97,7 +97,7 @@ impl CompositionSwapChain {
     pub fn resize(&mut self, env: &mut CompositionBackend, width: u32, height: u32) {
         self.0.resize(&mut env.d3d12, width, height);
     }
-    pub fn new_surface(
+    pub fn new_composition_surface(
         &mut self,
         env: &mut CompositionBackend,
         target: &CompositionTarget,
@@ -125,6 +125,14 @@ impl CompositionSwapChain {
             .unwrap()
             .draw(&mut env.d3d12, f)
             .ok()
+    }
+    pub fn unwrap_surface(&mut self, env: &mut CompositionBackend) -> &mut Surface {
+        self.0.get_active_mut().unwrap().get_surface()
+    }
+    pub fn present(&mut self, env: &mut CompositionBackend) {
+        if let Some(swap_chain) = self.0.get_active_mut() {
+            swap_chain.present(&mut env.d3d12);
+        }
     }
 }
 
