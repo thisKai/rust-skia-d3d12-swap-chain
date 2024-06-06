@@ -31,7 +31,7 @@ fn main() {
         .CreateSurfaceBrushWithSurface(&surface)
         .unwrap();
     brush
-        .SetStretch(windows::UI::Composition::CompositionStretch::Fill)
+        .SetStretch(windows::UI::Composition::CompositionStretch::UniformToFill)
         .unwrap();
 
     let visual = target.compositor.CreateSpriteVisual().unwrap();
@@ -78,6 +78,15 @@ fn main() {
             } => {
                 swap_chain.resize(&mut composition, new_size.width, new_size.height);
                 size = new_size;
+
+                if let Some(new_surface) =
+                    swap_chain.new_surface(&mut composition, &target).unwrap()
+                {
+                    brush.SetSurface(&new_surface).unwrap();
+                }
+                swap_chain
+                    .draw(&mut composition, |canvas| draw(canvas, size))
+                    .unwrap();
             }
             _ => (),
         })
