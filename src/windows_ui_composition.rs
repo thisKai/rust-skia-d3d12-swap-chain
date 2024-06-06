@@ -126,7 +126,7 @@ impl CompositionSwapChain {
             .draw(&mut env.d3d12, f)
             .ok()
     }
-    pub fn unwrap_surface(&mut self, env: &mut CompositionBackend) -> &mut Surface {
+    pub fn unwrap_surface_mut(&mut self) -> &mut Surface {
         self.0.get_active_mut().unwrap().get_surface()
     }
     pub fn present(&mut self, env: &mut CompositionBackend) {
