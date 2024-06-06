@@ -4,13 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["windows-ui-composition"]
+default = ["windows-ui-composition", "direct-composition"]
 windows-ui-composition = [
     "windows/System",
     "windows/Foundation_Numerics",
     "windows/Win32_System_WinRT_Composition",
     "windows/UI_Composition",
     "windows/UI_Composition_Desktop",
+]
+direct-composition = [
+    "windows/Win32_Graphics_DirectComposition",
+    "windows/Win32_Graphics_Direct3D11",
+    "windows/Win32_Graphics_Direct2D",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
