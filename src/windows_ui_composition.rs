@@ -74,7 +74,7 @@ impl CompositionTarget {
         swap_chain: &CompositionSwapChain,
     ) -> windows::core::Result<Option<ICompositionSurface>> {
         swap_chain
-            .0
+            .swap_chain
             .get_active()
             .map(|swap_chain| self.create_surface_internal(swap_chain))
             .transpose()
@@ -89,26 +89,30 @@ impl CompositionTarget {
     }
 }
 
-pub struct CompositionSwapChain(SwapChainState);
+pub struct CompositionSwapChain {
+    swap_chain: SwapChainState,
+}
 impl CompositionSwapChain {
     fn new(swap_chain: SwapChain) -> Self {
-        Self(SwapChainState::Active(swap_chain))
+        Self {
+            swap_chain: SwapChainState::Active(swap_chain),
+        }
     }
     pub fn resize(&mut self, env: &mut CompositionBackend, width: u32, height: u32) {
-        self.0.resize(&mut env.d3d12, width, height);
+        self.swap_chain.resize(&mut env.d3d12, width, height);
     }
     pub fn new_composition_surface(
         &mut self,
         env: &mut CompositionBackend,
         target: &CompositionTarget,
     ) -> windows::core::Result<Option<ICompositionSurface>> {
-        if let Some((width, height)) = self.0.needs_resize() {
+        if let Some((width, height)) = self.swap_chain.needs_resize() {
             env.d3d12.recreate_context_if_needed()?;
 
             let swap_chain = env.d3d12.create_swap_chain_for_composition(width, height)?;
             let surface = target.create_surface_internal(&swap_chain)?;
 
-            self.0 = SwapChainState::Active(swap_chain);
+            self.swap_chain = SwapChainState::Active(swap_chain);
 
             Ok(Some(surface))
         } else {
@@ -120,17 +124,17 @@ impl CompositionSwapChain {
         env: &mut CompositionBackend,
         f: impl FnMut(&Canvas),
     ) -> windows::core::Result<()> {
-        self.0
+        self.swap_chain
             .get_active_mut()
             .unwrap()
             .draw(&mut env.d3d12, f)
             .ok()
     }
     pub fn unwrap_surface_mut(&mut self) -> &mut Surface {
-        self.0.get_active_mut().unwrap().current_surface()
+        self.swap_chain.get_active_mut().unwrap().current_surface()
     }
     pub fn present(&mut self, env: &mut CompositionBackend) -> windows::core::Result<()> {
-        if let Some(swap_chain) = self.0.get_active_mut() {
+        if let Some(swap_chain) = self.swap_chain.get_active_mut() {
             swap_chain.flush_and_present(&mut env.d3d12).ok()?;
         }
         Ok(())
