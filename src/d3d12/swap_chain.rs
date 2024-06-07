@@ -1,3 +1,5 @@
+use std::ptr;
+
 use skia_safe::{gpu::BackendRenderTarget, Canvas, Surface};
 use windows::{
     core::HRESULT,
@@ -8,8 +10,8 @@ use windows::{
                 DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_UNSPECIFIED, DXGI_FORMAT_R8G8B8A8_UNORM,
                 DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
             },
-            IDXGISwapChain3, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
-            DXGI_USAGE_RENDER_TARGET_OUTPUT,
+            IDXGISwapChain3, DXGI_PRESENT_PARAMETERS, DXGI_SWAP_CHAIN_DESC1,
+            DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, DXGI_USAGE_RENDER_TARGET_OUTPUT,
         },
     },
 };
@@ -174,7 +176,13 @@ impl SwapChain {
         env.flush_and_submit_surface(surface, None);
     }
     pub fn present(&self) -> HRESULT {
-        unsafe { self.swap_chain.Present(0, 0) }
+        let params = DXGI_PRESENT_PARAMETERS {
+            DirtyRectsCount: 0,
+            pDirtyRects: ptr::null_mut(),
+            pScrollRect: ptr::null_mut(),
+            pScrollOffset: ptr::null_mut(),
+        };
+        unsafe { self.swap_chain.Present1(0, 0, &params) }
     }
 }
 
