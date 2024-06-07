@@ -154,12 +154,12 @@ impl SwapChain {
         f(&canvas);
 
         env.flush_and_submit_surface(surface, None);
-        unsafe { self.swap_chain.Present(1, 0) }
+        unsafe { self.swap_chain.Present(0, 0) }
     }
     pub fn present(&mut self, env: &mut Backend) {
         let surface = self.get_surface();
         env.flush_and_submit_surface(surface, None);
-        unsafe { self.swap_chain.Present(1, 0) }.ok().unwrap()
+        unsafe { self.swap_chain.Present(0, 0) }.ok().unwrap()
     }
     pub fn get_surface(&mut self) -> &mut Surface {
         let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() };
