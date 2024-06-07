@@ -41,6 +41,9 @@ impl CompositionBackend {
                 .create_swap_chain_for_composition(width, height)?,
         ))
     }
+    pub fn dwm_flush(&self) -> windows::core::Result<()> {
+        self.d3d12.dwm_flush()
+    }
 }
 
 pub struct CompositionTarget {
@@ -91,15 +94,18 @@ impl CompositionTarget {
 
 pub struct CompositionSwapChain {
     swap_chain: SwapChainState,
+    needs_dwm_flush: bool,
 }
 impl CompositionSwapChain {
     fn new(swap_chain: SwapChain) -> Self {
         Self {
             swap_chain: SwapChainState::Active(swap_chain),
+            needs_dwm_flush: false,
         }
     }
     pub fn resize(&mut self, env: &mut CompositionBackend, width: u32, height: u32) {
         self.swap_chain.resize(&mut env.d3d12, width, height);
+        self.needs_dwm_flush = true;
     }
     pub fn new_composition_surface(
         &mut self,
@@ -128,7 +134,9 @@ impl CompositionSwapChain {
             .get_active_mut()
             .unwrap()
             .draw(&mut env.d3d12, f)
-            .ok()
+            .ok()?;
+
+        self.dwm_flush(env)
     }
     pub fn unwrap_surface_mut(&mut self) -> &mut Surface {
         self.swap_chain.get_active_mut().unwrap().current_surface()
@@ -136,6 +144,14 @@ impl CompositionSwapChain {
     pub fn present(&mut self, env: &mut CompositionBackend) -> windows::core::Result<()> {
         if let Some(swap_chain) = self.swap_chain.get_active_mut() {
             swap_chain.flush_and_present(&mut env.d3d12).ok()?;
+
+            self.dwm_flush(env)?
+        }
+        Ok(())
+    }
+    fn dwm_flush(&mut self, env: &mut CompositionBackend) -> windows::core::Result<()> {
+        if self.needs_dwm_flush {
+            env.dwm_flush()?;
         }
         Ok(())
     }

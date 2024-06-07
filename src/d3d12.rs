@@ -21,6 +21,7 @@ use windows::{
         Graphics::{
             Direct3D::D3D_FEATURE_LEVEL_11_0,
             Direct3D12::{D3D12CreateDevice, D3D12_RESOURCE_STATE_COMMON},
+            Dwm::DwmFlush,
             Dxgi::{
                 Common::{DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_STANDARD_MULTISAMPLE_QUALITY_PATTERN},
                 CreateDXGIFactory1, IDXGIFactory4, IDXGISwapChain3, DXGI_ADAPTER_FLAG,
@@ -171,6 +172,9 @@ impl Backend {
     }
     pub fn cleanup(&mut self) {
         self.skia_context.unwrap_mut().cleanup()
+    }
+    pub fn dwm_flush(&self) -> windows::core::Result<()> {
+        unsafe { DwmFlush() }
     }
 }
 

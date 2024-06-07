@@ -86,9 +86,6 @@ fn main() {
                 {
                     brush.SetSurface(&new_surface).unwrap();
                 }
-                swap_chain
-                    .draw(&mut composition, |canvas| draw(canvas, size))
-                    .unwrap();
             }
             _ => (),
         })
