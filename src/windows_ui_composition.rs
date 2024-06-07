@@ -127,12 +127,13 @@ impl CompositionSwapChain {
             .ok()
     }
     pub fn unwrap_surface_mut(&mut self) -> &mut Surface {
-        self.0.get_active_mut().unwrap().get_surface()
+        self.0.get_active_mut().unwrap().current_surface()
     }
-    pub fn present(&mut self, env: &mut CompositionBackend) {
+    pub fn present(&mut self, env: &mut CompositionBackend) -> windows::core::Result<()> {
         if let Some(swap_chain) = self.0.get_active_mut() {
-            swap_chain.present(&mut env.d3d12);
+            swap_chain.flush_and_present(&mut env.d3d12).ok()?;
         }
+        Ok(())
     }
 }
 

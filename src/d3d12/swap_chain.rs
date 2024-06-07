@@ -1,13 +1,16 @@
 use skia_safe::{gpu::BackendRenderTarget, Canvas, Surface};
-use windows::Win32::{
-    Foundation::HWND,
-    Graphics::Dxgi::{
-        Common::{
-            DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_UNSPECIFIED, DXGI_FORMAT_R8G8B8A8_UNORM,
-            DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
+use windows::{
+    core::HRESULT,
+    Win32::{
+        Foundation::HWND,
+        Graphics::Dxgi::{
+            Common::{
+                DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_UNSPECIFIED, DXGI_FORMAT_R8G8B8A8_UNORM,
+                DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
+            },
+            IDXGISwapChain3, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+            DXGI_USAGE_RENDER_TARGET_OUTPUT,
         },
-        IDXGISwapChain3, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
-        DXGI_USAGE_RENDER_TARGET_OUTPUT,
     },
 };
 
@@ -41,12 +44,13 @@ impl HwndSwapChain {
     pub fn get_surface(&mut self, env: &mut Backend) -> windows::core::Result<&mut Surface> {
         self.recreate_if_needed(env)?;
 
-        Ok(self.swap_chain.get_active_mut().unwrap().get_surface())
+        Ok(self.swap_chain.get_active_mut().unwrap().current_surface())
     }
-    pub fn present(&mut self, env: &mut Backend) {
+    pub fn present(&mut self, env: &mut Backend) -> windows::core::Result<()> {
         if let Some(swap_chain) = self.swap_chain.get_active_mut() {
-            swap_chain.present(env);
+            swap_chain.flush_and_present(env).ok()?;
         }
+        Ok(())
     }
     fn recreate_if_needed(&mut self, env: &mut Backend) -> windows::core::Result<()> {
         if let Some((width, height)) = self.swap_chain.needs_resize() {
@@ -109,14 +113,14 @@ impl SwapChainState {
 
 pub struct SwapChain {
     pub(crate) swap_chain: IDXGISwapChain3,
-    surfaces: Option<SwapChainSurfaceArray>,
+    surfaces: SwapChainSurfaces,
 }
 
 impl SwapChain {
     pub(crate) fn new(swap_chain: IDXGISwapChain3, surfaces: SwapChainSurfaceArray) -> Self {
         Self {
             swap_chain,
-            surfaces: Some(surfaces),
+            surfaces: SwapChainSurfaces::new(surfaces),
         }
     }
     pub fn resize(
@@ -130,7 +134,7 @@ impl SwapChain {
         }
         env.cleanup();
 
-        self.surfaces = None;
+        self.surfaces.release();
 
         unsafe {
             self.swap_chain
@@ -146,24 +150,48 @@ impl SwapChain {
         env: &mut Backend,
         mut f: impl FnMut(&Canvas),
     ) -> windows::core::HRESULT {
-        let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() };
-        let surface = &mut self.surfaces.as_mut().unwrap()[index as usize].0;
+        let surface = self.surfaces.current_surface(&self.swap_chain);
 
         let canvas = surface.canvas();
 
         f(&canvas);
 
         env.flush_and_submit_surface(surface, None);
+
+        self.present()
+    }
+    pub fn current_surface(&mut self) -> &mut Surface {
+        self.surfaces.current_surface(&self.swap_chain)
+    }
+    pub fn flush_and_present(&mut self, env: &mut Backend) -> HRESULT {
+        self.flush(env);
+
+        self.present()
+    }
+    pub fn flush(&mut self, env: &mut Backend) {
+        let surface = self.surfaces.current_surface(&self.swap_chain);
+
+        env.flush_and_submit_surface(surface, None);
+    }
+    pub fn present(&self) -> HRESULT {
         unsafe { self.swap_chain.Present(0, 0) }
     }
-    pub fn present(&mut self, env: &mut Backend) {
-        let surface = self.get_surface();
-        env.flush_and_submit_surface(surface, None);
-        unsafe { self.swap_chain.Present(0, 0) }.ok().unwrap()
+}
+
+struct SwapChainSurfaces(Option<SwapChainSurfaceArray>);
+impl SwapChainSurfaces {
+    fn new(surfaces: SwapChainSurfaceArray) -> Self {
+        Self(Some(surfaces))
     }
-    pub fn get_surface(&mut self) -> &mut Surface {
-        let index = unsafe { self.swap_chain.GetCurrentBackBufferIndex() };
-        &mut self.surfaces.as_mut().unwrap()[index as usize].0
+    fn current_surface(&mut self, swap_chain: &IDXGISwapChain3) -> &mut Surface {
+        let index = unsafe { swap_chain.GetCurrentBackBufferIndex() };
+        &mut self.0.as_mut().unwrap()[index as usize].0
+    }
+    fn release(&mut self) {
+        self.0 = None;
+    }
+    fn replace(&mut self, surfaces: SwapChainSurfaceArray) {
+        self.0.replace(surfaces);
     }
 }
 
