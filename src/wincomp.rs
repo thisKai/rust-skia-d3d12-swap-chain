@@ -21,11 +21,11 @@ use crate::d3d12::{
     Backend,
 };
 
-pub struct CompositionBackend {
+pub struct WinCompBackend {
     _dispatcher_queue_controller: DispatcherQueueController,
     d3d12: Backend,
 }
-impl CompositionBackend {
+impl WinCompBackend {
     pub fn new() -> windows::core::Result<Self> {
         Ok(Self {
             _dispatcher_queue_controller: create_dispatcher_queue_controller_for_current_thread()?,
@@ -36,8 +36,8 @@ impl CompositionBackend {
         &mut self,
         width: u32,
         height: u32,
-    ) -> windows::core::Result<CompositionSwapChain> {
-        Ok(CompositionSwapChain::new(
+    ) -> windows::core::Result<WinCompSwapChain> {
+        Ok(WinCompSwapChain::new(
             self.d3d12.create_swap_chain_for_composition(
                 width,
                 height,
@@ -47,11 +47,11 @@ impl CompositionBackend {
     }
 }
 
-pub struct CompositionTarget {
+pub struct WinCompTarget {
     pub compositor: Compositor,
     pub desktop_window_target: DesktopWindowTarget,
 }
-impl CompositionTarget {
+impl WinCompTarget {
     pub fn with_window<W: HasRawWindowHandle>(window: &W) -> windows::core::Result<Self> {
         Self::with_raw_window_handle(window.raw_window_handle())
     }
@@ -75,7 +75,7 @@ impl CompositionTarget {
     }
     pub fn create_surface(
         &self,
-        swap_chain: &CompositionSwapChain,
+        swap_chain: &WinCompSwapChain,
     ) -> windows::core::Result<Option<ICompositionSurface>> {
         swap_chain
             .swap_chain
@@ -93,18 +93,18 @@ impl CompositionTarget {
     }
 }
 
-pub struct CompositionSwapChain {
+pub struct WinCompSwapChain {
     swap_chain: SwapChainState,
     needs_dwm_flush: bool,
 }
-impl CompositionSwapChain {
+impl WinCompSwapChain {
     fn new(swap_chain: SwapChain) -> Self {
         Self {
             swap_chain: SwapChainState::Active(swap_chain),
             needs_dwm_flush: false,
         }
     }
-    pub fn resize(&mut self, env: &mut CompositionBackend, width: u32, height: u32) {
+    pub fn resize(&mut self, env: &mut WinCompBackend, width: u32, height: u32) {
         self.swap_chain.resize(
             &mut env.d3d12,
             width,
@@ -115,8 +115,8 @@ impl CompositionSwapChain {
     }
     pub fn new_composition_surface(
         &mut self,
-        env: &mut CompositionBackend,
-        target: &CompositionTarget,
+        env: &mut WinCompBackend,
+        target: &WinCompTarget,
     ) -> windows::core::Result<Option<ICompositionSurface>> {
         if let Some((width, height)) = self.swap_chain.needs_resize() {
             env.d3d12.recreate_context_if_needed()?;
@@ -137,7 +137,7 @@ impl CompositionSwapChain {
     }
     pub fn draw(
         &mut self,
-        env: &mut CompositionBackend,
+        env: &mut WinCompBackend,
         f: impl FnMut(&Canvas),
     ) -> windows::core::Result<()> {
         self.swap_chain
@@ -149,7 +149,7 @@ impl CompositionSwapChain {
     pub fn unwrap_surface_mut(&mut self) -> &mut Surface {
         self.swap_chain.get_active_mut().unwrap().current_surface()
     }
-    pub fn present(&mut self, env: &mut CompositionBackend) -> windows::core::Result<()> {
+    pub fn present(&mut self, env: &mut WinCompBackend) -> windows::core::Result<()> {
         if let Some(swap_chain) = self.swap_chain.get_active_mut() {
             swap_chain.wait()?;
 

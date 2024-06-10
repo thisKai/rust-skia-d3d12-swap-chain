@@ -1,4 +1,4 @@
-use skia_d3d12_swap_chain::{CompositionBackend, CompositionTarget};
+use skia_d3d12_swap_chain::{WinCompBackend, WinCompTarget};
 use skia_safe::{colors, Canvas, Paint};
 use windows::Foundation::Numerics::Vector2;
 use winit::{
@@ -11,14 +11,14 @@ use winit::{
 fn main() {
     let event_loop = EventLoop::new().unwrap();
 
-    let mut composition = CompositionBackend::new().unwrap();
+    let mut composition = WinCompBackend::new().unwrap();
 
     let window = WindowBuilder::new()
         .with_transparent(true)
         .with_no_redirection_bitmap(true)
         .build(&event_loop)
         .unwrap();
-    let target = CompositionTarget::with_window(&window).unwrap();
+    let target = WinCompTarget::with_window(&window).unwrap();
 
     let mut size = window.inner_size();
     let mut swap_chain = composition
