@@ -13,7 +13,9 @@ use windows::{
             DQTYPE_THREAD_CURRENT,
         },
     },
-    UI::Composition::{Compositor, Desktop::DesktopWindowTarget, ICompositionSurface},
+    UI::Composition::{
+        Core::CompositorController, Desktop::DesktopWindowTarget, ICompositionSurface,
+    },
 };
 
 use crate::d3d12::{
@@ -48,7 +50,7 @@ impl WinCompBackend {
 }
 
 pub struct WinCompTarget {
-    pub compositor: Compositor,
+    pub controller: CompositorController,
     pub desktop_window_target: DesktopWindowTarget,
 }
 impl WinCompTarget {
@@ -63,13 +65,14 @@ impl WinCompTarget {
         Self::with_hwnd(hwnd)
     }
     pub fn with_hwnd(hwnd: HWND) -> windows::core::Result<Self> {
-        let compositor = Compositor::new()?;
+        let controller = CompositorController::new()?;
+        let compositor = controller.Compositor()?;
         let compositor_desktop_interop: ICompositorDesktopInterop = compositor.cast()?;
         let desktop_window_target =
             unsafe { compositor_desktop_interop.CreateDesktopWindowTarget(hwnd, true) }?;
 
         Ok(Self {
-            compositor,
+            controller,
             desktop_window_target,
         })
     }
@@ -87,7 +90,7 @@ impl WinCompTarget {
         &self,
         swap_chain: &SwapChain,
     ) -> windows::core::Result<ICompositionSurface> {
-        let compositor_interop: ICompositorInterop = self.compositor.cast()?;
+        let compositor_interop: ICompositorInterop = self.controller.Compositor()?.cast()?;
 
         unsafe { compositor_interop.CreateCompositionSurfaceForSwapChain(&swap_chain.swap_chain) }
     }
@@ -104,7 +107,13 @@ impl WinCompSwapChain {
             needs_dwm_flush: false,
         }
     }
-    pub fn resize(&mut self, env: &mut WinCompBackend, width: u32, height: u32) {
+    pub fn resize(
+        &mut self,
+        env: &mut WinCompBackend,
+        target: &WinCompTarget,
+        width: u32,
+        height: u32,
+    ) {
         self.swap_chain.resize(
             &mut env.d3d12,
             width,
@@ -149,11 +158,17 @@ impl WinCompSwapChain {
     pub fn unwrap_surface_mut(&mut self) -> &mut Surface {
         self.swap_chain.get_active_mut().unwrap().current_surface()
     }
-    pub fn present(&mut self, env: &mut WinCompBackend) -> windows::core::Result<()> {
+    pub fn present(
+        &mut self,
+        env: &mut WinCompBackend,
+        target: &WinCompTarget,
+    ) -> windows::core::Result<()> {
         if let Some(swap_chain) = self.swap_chain.get_active_mut() {
             swap_chain.wait()?;
 
             swap_chain.flush_and_present(&mut env.d3d12).ok()?;
+
+            target.controller.Commit()?;
         }
         Ok(())
     }

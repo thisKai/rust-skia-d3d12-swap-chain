@@ -10,6 +10,7 @@ windows-ui-composition = [
     "windows/Foundation_Numerics",
     "windows/Win32_System_WinRT_Composition",
     "windows/UI_Composition",
+    "windows/UI_Composition_Core",
     "windows/UI_Composition_Desktop",
 ]
 direct-composition = [
