@@ -1,18 +1,26 @@
 use std::ptr;
 
-use skia_safe::{gpu::BackendRenderTarget, Canvas, Surface};
+use skia_safe::{
+    gpu::{BackendRenderTarget, SyncCpu},
+    Canvas, Surface,
+};
 use windows::{
     core::HRESULT,
     Win32::{
-        Foundation::HWND,
-        Graphics::Dxgi::{
-            Common::{
-                DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_UNSPECIFIED, DXGI_FORMAT_R8G8B8A8_UNORM,
-                DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
+        Foundation::{CloseHandle, HWND},
+        Graphics::{
+            Dwm::DwmFlush,
+            Dxgi::{
+                Common::{
+                    DXGI_ALPHA_MODE, DXGI_ALPHA_MODE_PREMULTIPLIED, DXGI_ALPHA_MODE_UNSPECIFIED,
+                    DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
+                },
+                IDXGISwapChain3, DXGI_PRESENT_PARAMETERS, DXGI_SWAP_CHAIN_DESC1,
+                DXGI_SWAP_CHAIN_FLAG, DXGI_SWAP_EFFECT_FLIP_DISCARD,
+                DXGI_USAGE_RENDER_TARGET_OUTPUT,
             },
-            IDXGISwapChain3, DXGI_PRESENT_PARAMETERS, DXGI_SWAP_CHAIN_DESC1,
-            DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, DXGI_USAGE_RENDER_TARGET_OUTPUT,
         },
+        System::Threading::WaitForSingleObjectEx,
     },
 };
 
@@ -34,7 +42,8 @@ impl HwndSwapChain {
         }
     }
     pub fn resize(&mut self, env: &mut Backend, width: u32, height: u32) {
-        self.swap_chain.resize(env, width, height);
+        self.swap_chain
+            .resize(env, width, height, Default::default());
     }
     pub fn draw(&mut self, env: &mut Backend, f: impl FnMut(&Canvas)) -> windows::core::Result<()> {
         self.recreate_if_needed(env)?;
@@ -91,11 +100,17 @@ impl SwapChainState {
             _ => None,
         }
     }
-    pub(crate) fn resize(&mut self, env: &mut Backend, width: u32, height: u32) {
+    pub(crate) fn resize(
+        &mut self,
+        env: &mut Backend,
+        width: u32,
+        height: u32,
+        flags: DXGI_SWAP_CHAIN_FLAG,
+    ) {
         let needs_resize = self
             .get_active_mut()
             .map(|swap_chain| {
-                if swap_chain.resize(env, width, height).is_err() {
+                if swap_chain.resize(env, width, height, flags).is_err() {
                     env.release_context();
                     true
                 } else {
@@ -130,6 +145,7 @@ impl SwapChain {
         env: &mut Backend,
         width: u32,
         height: u32,
+        flags: DXGI_SWAP_CHAIN_FLAG,
     ) -> windows::core::Result<()> {
         if width == 0 || height == 0 {
             return Ok(());
@@ -139,8 +155,13 @@ impl SwapChain {
         self.surfaces.release();
 
         unsafe {
-            self.swap_chain
-                .ResizeBuffers(BUFFER_COUNT, width, height, DXGI_FORMAT_UNKNOWN, 0)
+            self.swap_chain.ResizeBuffers(
+                BUFFER_COUNT,
+                width,
+                height,
+                DXGI_FORMAT_UNKNOWN,
+                flags.0 as _,
+            )
         }?;
 
         self.surfaces
@@ -165,6 +186,14 @@ impl SwapChain {
     pub fn current_surface(&mut self) -> &mut Surface {
         self.surfaces.current_surface(&self.swap_chain)
     }
+    pub fn wait(&self) -> windows::core::Result<()> {
+        unsafe {
+            let wait = self.swap_chain.GetFrameLatencyWaitableObject();
+            WaitForSingleObjectEx(wait, 1000, true);
+            CloseHandle(wait)?;
+            DwmFlush()
+        }
+    }
     pub fn flush_and_present(&mut self, env: &mut Backend) -> HRESULT {
         self.flush(env);
 
@@ -173,7 +202,7 @@ impl SwapChain {
     pub fn flush(&mut self, env: &mut Backend) {
         let surface = self.surfaces.current_surface(&self.swap_chain);
 
-        env.flush_and_submit_surface(surface, None);
+        env.flush_and_submit_surface(surface, SyncCpu::Yes);
     }
     pub fn present(&self) -> HRESULT {
         let params = DXGI_PRESENT_PARAMETERS {
@@ -204,26 +233,41 @@ impl SwapChainSurfaces {
 }
 
 pub(crate) fn swap_chain_desc_hwnd(width: u32, height: u32) -> DXGI_SWAP_CHAIN_DESC1 {
-    swap_chain_desc(width, height, DXGI_ALPHA_MODE_UNSPECIFIED)
+    swap_chain_desc(
+        width,
+        height,
+        DXGI_ALPHA_MODE_UNSPECIFIED,
+        Default::default(),
+    )
 }
 
-pub(crate) fn swap_chain_desc_composition(width: u32, height: u32) -> DXGI_SWAP_CHAIN_DESC1 {
-    swap_chain_desc(width, height, DXGI_ALPHA_MODE_UNSPECIFIED)
+pub(crate) fn swap_chain_desc_composition(
+    width: u32,
+    height: u32,
+    flags: DXGI_SWAP_CHAIN_FLAG,
+) -> DXGI_SWAP_CHAIN_DESC1 {
+    swap_chain_desc(width, height, DXGI_ALPHA_MODE_PREMULTIPLIED, flags)
 }
 
-fn swap_chain_desc(width: u32, height: u32, alpha_mode: DXGI_ALPHA_MODE) -> DXGI_SWAP_CHAIN_DESC1 {
+fn swap_chain_desc(
+    width: u32,
+    height: u32,
+    alpha_mode: DXGI_ALPHA_MODE,
+    flags: DXGI_SWAP_CHAIN_FLAG,
+) -> DXGI_SWAP_CHAIN_DESC1 {
     DXGI_SWAP_CHAIN_DESC1 {
         Width: width,
         Height: height,
         Format: DXGI_FORMAT_R8G8B8A8_UNORM,
         BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
         BufferCount: BUFFER_COUNT,
-        SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+        SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
         SampleDesc: DXGI_SAMPLE_DESC {
             Count: 1,
             Quality: 0,
         },
         AlphaMode: alpha_mode,
+        Flags: flags.0 as _,
         ..Default::default()
     }
 }

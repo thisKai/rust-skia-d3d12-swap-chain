@@ -25,7 +25,7 @@ use windows::{
             Dxgi::{
                 Common::{DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_STANDARD_MULTISAMPLE_QUALITY_PATTERN},
                 CreateDXGIFactory1, IDXGIFactory4, IDXGISwapChain3, DXGI_ADAPTER_FLAG,
-                DXGI_ADAPTER_FLAG_NONE, DXGI_ADAPTER_FLAG_SOFTWARE,
+                DXGI_ADAPTER_FLAG_NONE, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_SWAP_CHAIN_FLAG,
             },
         },
     },
@@ -108,11 +108,12 @@ impl Backend {
         &mut self,
         width: u32,
         height: u32,
+        flags: DXGI_SWAP_CHAIN_FLAG,
     ) -> windows::core::Result<SwapChain> {
         let swap_chain: IDXGISwapChain3 = unsafe {
             self.factory.CreateSwapChainForComposition(
                 &self.skia_context.unwrap_ref().backend_context.queue,
-                &swap_chain_desc_composition(width, height),
+                &swap_chain_desc_composition(width, height, flags),
                 None,
             )
         }?
@@ -172,9 +173,6 @@ impl Backend {
     }
     pub fn cleanup(&mut self) {
         self.skia_context.unwrap_mut().cleanup()
-    }
-    pub fn dwm_flush(&self) -> windows::core::Result<()> {
-        unsafe { DwmFlush() }
     }
 }
 

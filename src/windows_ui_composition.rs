@@ -5,6 +5,7 @@ use windows::{
     System::DispatcherQueueController,
     Win32::{
         Foundation::HWND,
+        Graphics::Dxgi::DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT,
         System::WinRT::{
             Composition::{ICompositorDesktopInterop, ICompositorInterop},
             CreateDispatcherQueueController, DispatcherQueueOptions,
@@ -37,12 +38,12 @@ impl CompositionBackend {
         height: u32,
     ) -> windows::core::Result<CompositionSwapChain> {
         Ok(CompositionSwapChain::new(
-            self.d3d12
-                .create_swap_chain_for_composition(width, height)?,
+            self.d3d12.create_swap_chain_for_composition(
+                width,
+                height,
+                DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT,
+            )?,
         ))
-    }
-    pub fn dwm_flush(&self) -> windows::core::Result<()> {
-        self.d3d12.dwm_flush()
     }
 }
 
@@ -104,7 +105,12 @@ impl CompositionSwapChain {
         }
     }
     pub fn resize(&mut self, env: &mut CompositionBackend, width: u32, height: u32) {
-        self.swap_chain.resize(&mut env.d3d12, width, height);
+        self.swap_chain.resize(
+            &mut env.d3d12,
+            width,
+            height,
+            DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT,
+        );
         self.needs_dwm_flush = true;
     }
     pub fn new_composition_surface(
@@ -115,7 +121,11 @@ impl CompositionSwapChain {
         if let Some((width, height)) = self.swap_chain.needs_resize() {
             env.d3d12.recreate_context_if_needed()?;
 
-            let swap_chain = env.d3d12.create_swap_chain_for_composition(width, height)?;
+            let swap_chain = env.d3d12.create_swap_chain_for_composition(
+                width,
+                height,
+                DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT,
+            )?;
             let surface = target.create_surface_internal(&swap_chain)?;
 
             self.swap_chain = SwapChainState::Active(swap_chain);
@@ -134,24 +144,16 @@ impl CompositionSwapChain {
             .get_active_mut()
             .unwrap()
             .draw(&mut env.d3d12, f)
-            .ok()?;
-
-        self.dwm_flush(env)
+            .ok()
     }
     pub fn unwrap_surface_mut(&mut self) -> &mut Surface {
         self.swap_chain.get_active_mut().unwrap().current_surface()
     }
     pub fn present(&mut self, env: &mut CompositionBackend) -> windows::core::Result<()> {
         if let Some(swap_chain) = self.swap_chain.get_active_mut() {
-            swap_chain.flush_and_present(&mut env.d3d12).ok()?;
+            swap_chain.wait()?;
 
-            self.dwm_flush(env)?
-        }
-        Ok(())
-    }
-    fn dwm_flush(&mut self, env: &mut CompositionBackend) -> windows::core::Result<()> {
-        if self.needs_dwm_flush {
-            env.dwm_flush()?;
+            swap_chain.flush_and_present(&mut env.d3d12).ok()?;
         }
         Ok(())
     }

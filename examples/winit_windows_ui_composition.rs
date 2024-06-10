@@ -93,7 +93,7 @@ fn main() {
 }
 
 fn draw(canvas: &Canvas, size: PhysicalSize<u32>) {
-    canvas.clear(colors::BLACK);
+    canvas.clear(colors::TRANSPARENT);
 
     canvas.draw_circle(
         ((size.width / 2) as i32, (size.height / 2) as i32),

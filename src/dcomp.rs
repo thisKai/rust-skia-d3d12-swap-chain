@@ -51,7 +51,7 @@ impl DCompBackend {
     ) -> windows::core::Result<DCompSwapChain> {
         Ok(DCompSwapChain::new(
             self.d3d12
-                .create_swap_chain_for_composition(width, height)?,
+                .create_swap_chain_for_composition(width, height, Default::default())?,
         ))
     }
     pub fn create_target_for_window<W: HasRawWindowHandle>(
@@ -108,7 +108,8 @@ impl DCompSwapChain {
         Self(SwapChainState::Active(swap_chain))
     }
     pub fn resize(&mut self, env: &mut DCompBackend, width: u32, height: u32) {
-        self.0.resize(&mut env.d3d12, width, height);
+        self.0
+            .resize(&mut env.d3d12, width, height, Default::default());
     }
     pub fn new_inner_swap_chain(
         &mut self,
@@ -117,7 +118,9 @@ impl DCompSwapChain {
         if let Some((width, height)) = self.0.needs_resize() {
             env.d3d12.recreate_context_if_needed()?;
 
-            let swap_chain = env.d3d12.create_swap_chain_for_composition(width, height)?;
+            let swap_chain =
+                env.d3d12
+                    .create_swap_chain_for_composition(width, height, Default::default())?;
 
             self.0 = SwapChainState::Active(swap_chain);
 
