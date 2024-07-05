@@ -23,7 +23,7 @@ direct-composition = [
 
 [dependencies]
 raw-window-handle = "0.5"
-skia-safe = { version = "0.73", features = ["d3d"] }
+skia-safe = { version = "0.75", features = ["d3d"] }
 
 [dependencies.windows]
 version = "0.56"
