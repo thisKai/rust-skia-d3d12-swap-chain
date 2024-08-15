@@ -1,8 +1,8 @@
-mod d3d12;
+pub mod d3d12;
 #[cfg(feature = "direct-composition")]
-mod dcomp;
+pub mod dcomp;
 #[cfg(feature = "windows-ui-composition")]
-mod wincomp;
+pub mod wincomp;
 
 pub use d3d12::{
     swap_chain::{HwndSwapChain, SwapChain},

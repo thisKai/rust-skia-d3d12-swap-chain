@@ -2,26 +2,25 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use skia_safe::{Canvas, Surface};
 use windows::{
     core::Interface,
-    Win32::{
-        Foundation::HWND,
-        Graphics::{
-            Direct2D::{D2D1CreateDevice, ID2D1Device},
-            Direct3D::D3D_DRIVER_TYPE_HARDWARE,
-            Direct3D11::{
-                D3D11CreateDevice, ID3D11Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                D3D11_SDK_VERSION,
-            },
-            DirectComposition::{
-                DCompositionCreateDevice2, IDCompositionDesktopDevice, IDCompositionTarget,
-            },
-            Dxgi::{IDXGIDevice3, IDXGISwapChain3},
+    Win32::Graphics::{
+        Direct2D::{D2D1CreateDevice, ID2D1Device},
+        Direct3D::D3D_DRIVER_TYPE_HARDWARE,
+        Direct3D11::{
+            D3D11CreateDevice, ID3D11Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_SDK_VERSION,
         },
+        DirectComposition::{DCompositionCreateDevice2, IDCompositionDesktopDevice},
+        Dxgi::{IDXGIDevice3, IDXGISwapChain3},
     },
 };
 
 use crate::d3d12::{
     swap_chain::{SwapChain, SwapChainState},
     Backend,
+};
+
+pub use windows::Win32::{
+    Foundation::HWND,
+    Graphics::DirectComposition::{IDCompositionTarget, IDCompositionVisual2},
 };
 
 pub struct DCompBackend {
